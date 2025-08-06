@@ -164,6 +164,16 @@ async def main():
             if parsed_rows:
                 await insert_bulk(conn, parsed_rows)
 
+            # Insertar una fila de log por cada archivo procesado
+            await conn.execute(
+                """
+                INSERT INTO core.logs_csv_parser (cliente, processed_data)
+                VALUES ($1, $2)
+                """,
+                row['cliente_id'],
+                len(parsed_rows)
+            )
+
         except Exception as e:
             print(f'❌ Error al procesar row_id={row["id"]}: {e}')
 
