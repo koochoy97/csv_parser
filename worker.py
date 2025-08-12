@@ -1,4 +1,3 @@
-
 import asyncio
 import asyncpg
 import csv
@@ -87,6 +86,7 @@ COLUMN_MAPPING = {
     'sent_id': 'TEXT',
 }
 
+
 def convert(value, target_type):
     if value == '' or value is None:
         return None
@@ -108,12 +108,19 @@ def convert(value, target_type):
         return None
     return value
 
+
 def map_row(csv_row, cliente):
     result = {}
     for csv_col, db_col in CSV_COLUMNS.items():
+        # Manejo especial para la primera columna que puede tener BOM
+        actual_csv_col = csv_col
+        if csv_col == 'Contact Id' and '\ufeffContact Id' in csv_row:
+            actual_csv_col = '\ufeffContact Id'
+
         col_type = COLUMN_MAPPING[db_col]
-        raw_value = csv_row.get(csv_col, '')
+        raw_value = csv_row.get(actual_csv_col, '')
         result[db_col] = convert(raw_value, col_type)
+
     result['cliente'] = cliente
     result['fecha_de_subida'] = datetime.now()
 
@@ -130,6 +137,7 @@ def map_row(csv_row, cliente):
     result['sent_id'] = f"{contact_id}_{email_account}_{sequence_step}_{delivery_date_str}_{cliente}"
     return result
 
+
 async def insert_bulk(conn, rows):
     if not rows:
         print("⚠️  No hay filas para insertar.")
@@ -140,7 +148,7 @@ async def insert_bulk(conn, rows):
 
     query = f'''
         INSERT INTO staging.reporte_clientes ({','.join(columns)})
-        VALUES ({','.join(f'${i+1}' for i in range(len(columns)))})
+        VALUES ({','.join(f'${i + 1}' for i in range(len(columns)))})
     '''
 
     await conn.executemany(query, values)
@@ -160,7 +168,12 @@ async def main():
     for row in raw_rows:
         print(f"\n📄 Procesando archivo ID {row['id']} (cliente: {row['cliente_id']})...")
         try:
-            reader = csv.DictReader(io.StringIO(row['raw_data']))
+            # Limpiamos el BOM si existe
+            csv_data = row['raw_data']
+            if csv_data.startswith('\ufeff'):
+                csv_data = csv_data.lstrip('\ufeff')
+
+            reader = csv.DictReader(io.StringIO(csv_data))
             parsed_rows = [map_row(csv_row, row['cliente_id']) for csv_row in reader]
 
             print(f"🧩 Parseadas {len(parsed_rows)} filas. Insertando en DB...")
