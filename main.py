@@ -11,8 +11,9 @@ def root():
 
 @app.post("/procces_data")
 async def run_job():
-    asyncio.create_task(worker_main())  # ejecuta en segundo plano
-    return {"status": "Proceso iniciado"}
+    # Aquí no creamos tarea en background, sino que esperamos a que termine
+    result = await worker_main()
+    return {"status": "Proceso finalizado", "detalle": result}
 
 
 @app.post("/extract_reply_mails_reports")

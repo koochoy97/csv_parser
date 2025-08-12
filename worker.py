@@ -146,6 +146,7 @@ async def insert_bulk(conn, rows):
     await conn.executemany(query, values)
     print(f'✅ {len(rows)} filas insertadas correctamente.')
 
+
 async def main():
     print("🚀 Conectando a la base de datos...")
     conn = await asyncpg.connect(dsn=dsn)
@@ -153,6 +154,8 @@ async def main():
     print("📥 Obteniendo datos crudos desde staging.reportes_clientes_raw...")
     raw_rows = await conn.fetch('SELECT id, raw_data, cliente_id FROM staging.reportes_clientes_raw')
     print(f'🗂️  {len(raw_rows)} archivos CSV encontrados.')
+
+    total_inserted = 0
 
     for row in raw_rows:
         print(f"\n📄 Procesando archivo ID {row['id']} (cliente: {row['cliente_id']})...")
@@ -163,8 +166,9 @@ async def main():
             print(f"🧩 Parseadas {len(parsed_rows)} filas. Insertando en DB...")
             if parsed_rows:
                 await insert_bulk(conn, parsed_rows)
+                total_inserted += len(parsed_rows)
 
-            # Insertar una fila de log por cada archivo procesado
+            # Insertar log
             await conn.execute(
                 """
                 INSERT INTO core.logs_csv_parser (cliente, processed_data)
@@ -173,12 +177,15 @@ async def main():
                 row['cliente_id'],
                 len(parsed_rows)
             )
-
         except Exception as e:
             print(f'❌ Error al procesar row_id={row["id"]}: {e}')
 
     await conn.close()
     print("\n✅ Proceso finalizado. Conexión cerrada.")
+
+    # Devuelve algo para el endpoint
+    return {"total_files": len(raw_rows), "total_inserted_rows": total_inserted}
+
 
 # Solo ejecuta si se llama directamente (útil para debugging)
 if __name__ == "__main__":
