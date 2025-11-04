@@ -104,6 +104,7 @@ def convert(value, target_type):
                 '%d/%m/%Y',
                 '%m/%d/%Y',
                 '%a, %d %b %Y %H:%M:%S %Z',
+                '%a, %d %b %Y %H:%M:%S'
             ]:
                 try:
                     return datetime.strptime(value.strip(), fmt)
@@ -243,11 +244,8 @@ async def main():
     await conn.close()
     print("\n✅ Proceso finalizado. Conexión cerrada.")
 
-    # Devuelve algo para el endpoint
     return {"total_files": len(raw_rows), "total_inserted_rows": total_inserted}
 
 
-# Solo ejecuta si se llama directamente (útil para debugging)
 if __name__ == "__main__":
     asyncio.run(main())
-
