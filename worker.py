@@ -98,7 +98,13 @@ def convert(value, target_type):
         elif target_type == 'BOOLEAN':
             return str(value).strip().lower() in ['true', '1', 'yes', 't', 'y']
         elif target_type == 'TIMESTAMP':
-            for fmt in ['%Y-%m-%d %H:%M:%S', '%Y-%m-%d', '%d/%m/%Y', '%m/%d/%Y', '%a, %d %b %Y %H:%M:%S %Z']:
+            for fmt in [
+                '%Y-%m-%d %H:%M:%S',
+                '%Y-%m-%d',
+                '%d/%m/%Y',
+                '%m/%d/%Y',
+                '%a, %d %b %Y %H:%M:%S %Z',
+            ]:
                 try:
                     return datetime.strptime(value.strip(), fmt)
                 except ValueError:
@@ -167,8 +173,21 @@ async def main():
 
     for row in raw_rows:
         print(f"\n📄 Procesando archivo ID {row['id']} (cliente: {row['cliente_id']})...")
+
+        log_id = None
         try:
-            # Limpiamos el BOM si existe
+            # Crear log de inicio
+            log_id = await conn.fetchval(
+                """
+                INSERT INTO core.logs_csv_parser (cliente, status, processed_data, date)
+                VALUES ($1, $2, NULL, NOW())
+                RETURNING id
+                """,
+                row['cliente_id'],
+                'Inicio de Parseo'
+            )
+
+            # Limpiar BOM si existe
             csv_data = row['raw_data']
             if csv_data.startswith('\ufeff'):
                 csv_data = csv_data.lstrip('\ufeff')
@@ -181,17 +200,45 @@ async def main():
                 await insert_bulk(conn, parsed_rows)
                 total_inserted += len(parsed_rows)
 
-            # Insertar log
+            # Actualizar log como exitoso
             await conn.execute(
                 """
-                INSERT INTO core.logs_csv_parser (cliente, processed_data)
-                VALUES ($1, $2)
+                UPDATE core.logs_csv_parser
+                SET processed_data = $1,
+                    status = $2,
+                    date = NOW()
+                WHERE id = $3
                 """,
-                row['cliente_id'],
-                len(parsed_rows)
+                len(parsed_rows),
+                'Procesado',
+                log_id
             )
+
         except Exception as e:
             print(f'❌ Error al procesar row_id={row["id"]}: {e}')
+
+            # Actualizar log con error
+            if log_id:
+                await conn.execute(
+                    """
+                    UPDATE core.logs_csv_parser
+                    SET status = $1,
+                        date = NOW()
+                    WHERE id = $2
+                    """,
+                    f"Error: {str(e)}"[:250],
+                    log_id
+                )
+            else:
+                # Si falla incluso antes de crear el log
+                await conn.execute(
+                    """
+                    INSERT INTO core.logs_csv_parser (cliente, status, date)
+                    VALUES ($1, $2, NOW())
+                    """,
+                    row['cliente_id'],
+                    f"Error al iniciar: {str(e)}"[:250]
+                )
 
     await conn.close()
     print("\n✅ Proceso finalizado. Conexión cerrada.")
@@ -203,5 +250,4 @@ async def main():
 # Solo ejecuta si se llama directamente (útil para debugging)
 if __name__ == "__main__":
     asyncio.run(main())
-
 
