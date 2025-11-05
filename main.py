@@ -17,6 +17,10 @@ async def run_job():
 
 
 @app.post("/extract_reply_mails_reports")
-async def extract_reply_mails_reports(api_key: str):
-    result = await data_extractor_main(api_key)
+async def extract_reply_mails_reports(api_key: str, cliente: str):
+    """
+    Endpoint que dispara la generación del reporte de Reply.io
+    y guarda logs del proceso en core.logs_generated_reports.
+    """
+    result = await data_extractor_main(api_key, cliente)
     return result
