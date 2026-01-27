@@ -1,7 +1,7 @@
 from fastapi import FastAPI
-import asyncio
 from worker import main as worker_main
 from data_extractor import generate_report as data_extractor_main
+from manual_csv_parser import manual_csv_parser
 
 app = FastAPI()
 
@@ -9,18 +9,28 @@ app = FastAPI()
 def root():
     return {"message": "API para procesamiento de CSV"}
 
-@app.post("/procces_data")
+# =========================
+# Worker original (no cambia)
+# =========================
+@app.post("/process_data")
 async def run_job():
-    # Aquí no creamos tarea en background, sino que esperamos a que termine
     result = await worker_main()
     return {"status": "Proceso finalizado", "detalle": result}
 
 
+# =========================
+# Nuevo servicio MANUAL
+# =========================
+@app.post("/manual_csv_parser")
+async def run_manual_csv_parser(cliente_id: str):
+    result = await manual_csv_parser(cliente_id)
+    return {
+        "status": "Proceso manual finalizado",
+        "detalle": result
+    }
+
+
 @app.post("/extract_reply_mails_reports")
 async def extract_reply_mails_reports(api_key: str, cliente: str):
-    """
-    Endpoint que dispara la generación del reporte de Reply.io
-    y guarda logs del proceso en core.logs_generated_reports.
-    """
     result = await data_extractor_main(api_key, cliente)
     return result
