@@ -10,7 +10,7 @@ def root():
     return {"message": "API para procesamiento de CSV"}
 
 # =========================
-# Worker original (no cambia)
+# Worker original (no arreglado)
 # =========================
 @app.post("/process_data")
 async def run_job():
